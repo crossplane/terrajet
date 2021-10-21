@@ -17,28 +17,21 @@ limitations under the License.
 package controller
 
 import (
-	"k8s.io/client-go/util/workqueue"
-	ctrl "sigs.k8s.io/controller-runtime"
-
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
-
 	tjcontroller "github.com/crossplane-contrib/terrajet/pkg/controller"
-	"github.com/crossplane-contrib/terrajet/pkg/terraform"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	{{ .Imports }}
 )
 
-// Setup creates all controllers with the supplied logger and adds them to
-// the supplied manager.
-func Setup(mgr ctrl.Manager, l logging.Logger, wl workqueue.RateLimiter, ps terraform.SetupFn, ws *terraform.WorkspaceStore, concurrency int, enabledAPIs []string) error {
-	for _, setup := range []func(ctrl.Manager, logging.Logger, workqueue.RateLimiter, terraform.SetupFn, *terraform.WorkspaceStore, int, []string) error{
-		{{- range $alias := .Aliases }}
-		{{ $alias }}Setup,
-		{{- end }}
-	} {
-		if err := setup(mgr, l, wl, ps, ws, concurrency, enabledAPIs); err != nil {
-			return err
-		}
+// GetSetupMap returns a map from GVKs to
+// the respective controller setup functions.
+func GetSetupMap() map[schema.GroupVersionKind]tjcontroller.SetupFunc {
+	m := map[schema.GroupVersionKind]tjcontroller.SetupFunc{
+	    {{ $gvks := .GVKs -}}
+        {{- range $i, $alias := .Aliases }}
+            {{ $gvk := index $gvks $i -}}
+            schema.GroupVersionKind{Group: "{{ $gvk.Group }}", Version: "{{ $gvk.Version }}", Kind: "{{ $gvk.Kind }}"}: {{ $alias }}Setup,
+        {{- end }}
 	}
-	return nil
+	return m
 }

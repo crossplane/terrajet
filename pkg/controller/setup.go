@@ -20,8 +20,13 @@ import (
 	"fmt"
 	"regexp"
 
+	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/util/workqueue"
+	ctrl "sigs.k8s.io/controller-runtime"
+
+	"github.com/crossplane-contrib/terrajet/pkg/terraform"
 )
 
 const (
@@ -30,6 +35,10 @@ const (
 
 	fmtGVK = "%s/%s.%s"
 )
+
+// SetupFunc represents a function type for terrajet-based
+// managed resource controller setup functions.
+type SetupFunc func(ctrl.Manager, logging.Logger, workqueue.RateLimiter, terraform.SetupFn, *terraform.WorkspaceStore, int) error
 
 // IsAPIEnabled returns `true` if the specified GVK matches any
 // regular expression specified in enabledAPIs slice, or if enabledAPIs

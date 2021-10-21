@@ -23,6 +23,7 @@ import (
 
 	"github.com/muvaf/typewriter/pkg/wrapper"
 	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/crossplane-contrib/terrajet/pkg/pipeline/templates"
 )
@@ -43,7 +44,7 @@ type SetupGenerator struct {
 
 // Generate writes the setup file with the content produced using given
 // list of version packages.
-func (rg *SetupGenerator) Generate(versionPkgList []string) error {
+func (rg *SetupGenerator) Generate(versionPkgList []string, gvkList []schema.GroupVersionKind) error {
 	setupFile := wrapper.NewFile(filepath.Join(rg.ModulePath, "apis"), "apis", templates.SetupTemplate,
 		wrapper.WithGenStatement(GenStatement),
 		wrapper.WithHeaderPath("hack/boilerplate.go.txt"),
@@ -55,6 +56,7 @@ func (rg *SetupGenerator) Generate(versionPkgList []string) error {
 	sort.Strings(aliases)
 	vars := map[string]interface{}{
 		"Aliases": aliases,
+		"GVKs":    gvkList,
 	}
 	filePath := filepath.Join(rg.LocalDirectoryPath, "zz_setup.go")
 	return errors.Wrap(setupFile.Write(filePath, vars, os.ModePerm), "cannot write setup file")
