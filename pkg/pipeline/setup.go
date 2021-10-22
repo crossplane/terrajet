@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/muvaf/typewriter/pkg/wrapper"
 	"github.com/pkg/errors"
@@ -42,6 +43,11 @@ type SetupGenerator struct {
 	ModulePath         string
 }
 
+type aliasGVK struct {
+	Alias string
+	GVK   schema.GroupVersionKind
+}
+
 // Generate writes the setup file with the content produced using given
 // list of version packages.
 func (rg *SetupGenerator) Generate(versionPkgList []string, gvkList []schema.GroupVersionKind) error {
@@ -49,14 +55,18 @@ func (rg *SetupGenerator) Generate(versionPkgList []string, gvkList []schema.Gro
 		wrapper.WithGenStatement(GenStatement),
 		wrapper.WithHeaderPath("hack/boilerplate.go.txt"),
 	)
-	aliases := make([]string, len(versionPkgList))
+	aliasesGVKs := make([]aliasGVK, len(versionPkgList))
 	for i, pkgPath := range versionPkgList {
-		aliases[i] = setupFile.Imports.UsePackage(pkgPath)
+		aliasesGVKs[i] = aliasGVK{
+			Alias: setupFile.Imports.UsePackage(pkgPath),
+			GVK:   gvkList[i],
+		}
 	}
-	sort.Strings(aliases)
+	sort.Slice(aliasesGVKs, func(i, j int) bool {
+		return strings.Compare(aliasesGVKs[i].Alias, aliasesGVKs[j].Alias) == -1
+	})
 	vars := map[string]interface{}{
-		"Aliases": aliases,
-		"GVKs":    gvkList,
+		"AliasesGVKs": aliasesGVKs,
 	}
 	filePath := filepath.Join(rg.LocalDirectoryPath, "zz_setup.go")
 	return errors.Wrap(setupFile.Write(filePath, vars, os.ModePerm), "cannot write setup file")

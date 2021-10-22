@@ -27,10 +27,8 @@ import (
 // the respective controller setup functions.
 func GetSetupMap() map[schema.GroupVersionKind]tjcontroller.SetupFunc {
 	m := map[schema.GroupVersionKind]tjcontroller.SetupFunc{
-	    {{ $gvks := .GVKs -}}
-        {{- range $i, $alias := .Aliases }}
-            {{ $gvk := index $gvks $i -}}
-            schema.GroupVersionKind{Group: "{{ $gvk.Group }}", Version: "{{ $gvk.Version }}", Kind: "{{ $gvk.Kind }}"}: {{ $alias }}Setup,
+        {{- range $aliasGVK := .AliasesGVKs }}
+            schema.GroupVersionKind{Group: "{{ $aliasGVK.GVK.Group }}", Version: "{{ $aliasGVK.GVK.Version }}", Kind: "{{ $aliasGVK.GVK.Kind }}"}: {{ $aliasGVK.Alias }}Setup,
         {{- end }}
 	}
 	return m
