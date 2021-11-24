@@ -19,7 +19,6 @@ package terraform
 import (
 	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -72,6 +71,8 @@ type Workspace struct {
 	dir    string
 	env    []string
 	logger logging.Logger
+
+	Executor Exec
 }
 
 // ApplyAsync makes a terraform apply call without blocking and calls the given
@@ -84,8 +85,7 @@ func (w *Workspace) ApplyAsync(callback CallbackFn) error {
 	ctx, cancel := context.WithDeadline(context.TODO(), w.LastOperation.StartTime().Add(defaultAsyncTimeout))
 	go func() {
 		defer cancel()
-		cmd := exec.CommandContext(ctx, "terraform", "apply", "-auto-approve", "-input=false", "-lock=false", "-json")
-		w.configureCmd(cmd)
+		cmd := w.Executor.CommandContext(ctx, "terraform", w.dir, w.env, "apply", "-auto-approve", "-input=false", "-lock=false", "-json")
 		out, err := cmd.CombinedOutput()
 		w.LastOperation.MarkEnd()
 		w.logger.Debug("apply async ended", "out", string(out))
@@ -111,8 +111,7 @@ func (w *Workspace) Apply(ctx context.Context) (ApplyResult, error) {
 	if w.LastOperation.IsRunning() {
 		return ApplyResult{}, errors.Errorf("%s operation that started at %s is still running", w.LastOperation.Type, w.LastOperation.StartTime().String())
 	}
-	cmd := exec.CommandContext(ctx, "terraform", "apply", "-auto-approve", "-input=false", "-lock=false", "-json")
-	w.configureCmd(cmd)
+	cmd := w.Executor.CommandContext(ctx, "terraform", w.dir, w.env, "apply", "-auto-approve", "-input=false", "-lock=false", "-json")
 	out, err := cmd.CombinedOutput()
 	w.logger.Debug("apply ended", "out", string(out))
 	if err != nil {
@@ -147,8 +146,7 @@ func (w *Workspace) DestroyAsync(callback CallbackFn) error {
 	ctx, cancel := context.WithDeadline(context.TODO(), w.LastOperation.StartTime().Add(defaultAsyncTimeout))
 	go func() {
 		defer cancel()
-		cmd := exec.CommandContext(ctx, "terraform", "destroy", "-auto-approve", "-input=false", "-lock=false", "-json")
-		w.configureCmd(cmd)
+		cmd := w.Executor.CommandContext(ctx, "terraform", w.dir, w.env, "destroy", "-auto-approve", "-input=false", "-lock=false", "-json")
 		out, err := cmd.CombinedOutput()
 		w.LastOperation.MarkEnd()
 		w.logger.Debug("destroy async ended", "out", string(out))
@@ -169,8 +167,7 @@ func (w *Workspace) Destroy(ctx context.Context) error {
 	if w.LastOperation.IsRunning() {
 		return errors.Errorf("%s operation that started at %s is still running", w.LastOperation.Type, w.LastOperation.StartTime().String())
 	}
-	cmd := exec.CommandContext(ctx, "terraform", "destroy", "-auto-approve", "-input=false", "-lock=false", "-json")
-	w.configureCmd(cmd)
+	cmd := w.Executor.CommandContext(ctx, "terraform", w.dir, w.env, "destroy", "-auto-approve", "-input=false", "-lock=false", "-json")
 	out, err := cmd.CombinedOutput()
 	w.logger.Debug("destroy ended", "out", string(out))
 	if err != nil {
@@ -199,8 +196,7 @@ func (w *Workspace) Refresh(ctx context.Context) (RefreshResult, error) {
 	case w.LastOperation.IsEnded():
 		defer w.LastOperation.Flush()
 	}
-	cmd := exec.CommandContext(ctx, "terraform", "apply", "-refresh-only", "-auto-approve", "-input=false", "-lock=false", "-json")
-	w.configureCmd(cmd)
+	cmd := w.Executor.CommandContext(ctx, "terraform", w.dir, w.env, "apply", "-refresh-only", "-auto-approve", "-input=false", "-lock=false", "-json")
 	out, err := cmd.CombinedOutput()
 	w.logger.Debug("refresh ended", "out", string(out))
 	if err != nil {
@@ -233,8 +229,7 @@ func (w *Workspace) Plan(ctx context.Context) (PlanResult, error) {
 	if w.LastOperation.IsRunning() {
 		return PlanResult{}, errors.Errorf("%s operation that started at %s is still running", w.LastOperation.Type, w.LastOperation.StartTime().String())
 	}
-	cmd := exec.CommandContext(ctx, "terraform", "plan", "-refresh=false", "-input=false", "-lock=false", "-json")
-	w.configureCmd(cmd)
+	cmd := w.Executor.CommandContext(ctx, "terraform", w.dir, w.env, "plan", "-refresh=false", "-input=false", "-lock=false", "-json")
 	out, err := cmd.CombinedOutput()
 	w.logger.Debug("plan ended", "out", string(out))
 	if err != nil {
@@ -264,12 +259,4 @@ func (w *Workspace) Plan(ctx context.Context) (PlanResult, error) {
 		Exists:   p.Changes.Add == 0,
 		UpToDate: p.Changes.Change == 0,
 	}, nil
-}
-
-func (w *Workspace) configureCmd(cmd *exec.Cmd) {
-	if cmd.Env == nil {
-		cmd.Env = os.Environ()
-	}
-	cmd.Env = append(cmd.Env, w.env...)
-	cmd.Dir = w.dir
 }

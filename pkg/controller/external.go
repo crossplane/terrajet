@@ -98,6 +98,8 @@ func (c *Connector) Connect(ctx context.Context, mg xpresource.Managed) (managed
 		return nil, errors.Wrap(err, errGetWorkspace)
 	}
 
+	tf.Executor = &terraform.RealExec{}
+
 	return &external{
 		workspace: tf,
 		config:    c.config,
