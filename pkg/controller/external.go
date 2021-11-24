@@ -181,7 +181,7 @@ func (e *external) Observe(ctx context.Context, mg xpresource.Managed) (managed.
 
 	return managed.ExternalObservation{
 		ResourceExists:          true,
-		ResourceUpToDate:        plan.UpToDate,
+		ResourceUpToDate:        plan.UpToDate && plan.Exists,
 		ResourceLateInitialized: lateInitedAnn || lateInitedParams,
 		ConnectionDetails:       conn,
 	}, nil

@@ -212,6 +212,12 @@ type Resource struct {
 	// databases.
 	UseAsync bool
 
+	// AllowDestroy controls whether the `prevent_destroy: true` stanza
+	// is included in the Terraform configuration for the resource.
+	// For certain resources like Azure's PostgreSQLConfiguration,
+	// we would like to allow replacement.
+	AllowDestroy bool
+
 	// ExternalName allows you to specify a custom ExternalName.
 	ExternalName ExternalName
 

@@ -148,7 +148,7 @@ func (fp *FileProducer) WriteMainTF() error {
 	// If the resource is in a deletion process, we need to remove the deletion
 	// protection.
 	fp.parameters["lifecycle"] = map[string]bool{
-		"prevent_destroy": !meta.WasDeleted(fp.Resource),
+		"prevent_destroy": !meta.WasDeleted(fp.Resource) && !fp.Config.AllowDestroy,
 	}
 	// Note(turkenh): To use third party providers, we need to configure
 	// provider name in required_providers.
