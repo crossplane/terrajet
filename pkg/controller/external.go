@@ -26,6 +26,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/crossplane-contrib/terrajet/pkg/config"
+	"github.com/crossplane-contrib/terrajet/pkg/exec"
 	"github.com/crossplane-contrib/terrajet/pkg/resource"
 	"github.com/crossplane-contrib/terrajet/pkg/resource/json"
 	"github.com/crossplane-contrib/terrajet/pkg/terraform"
@@ -98,7 +99,7 @@ func (c *Connector) Connect(ctx context.Context, mg xpresource.Managed) (managed
 		return nil, errors.Wrap(err, errGetWorkspace)
 	}
 
-	tf.Executor = &terraform.RealExec{}
+	tf.Executor = &exec.OsExec{}
 
 	return &external{
 		workspace: tf,

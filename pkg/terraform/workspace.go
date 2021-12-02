@@ -27,6 +27,7 @@ import (
 
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 
+	"github.com/crossplane-contrib/terrajet/pkg/exec"
 	"github.com/crossplane-contrib/terrajet/pkg/resource/json"
 	tferrors "github.com/crossplane-contrib/terrajet/pkg/terraform/errors"
 )
@@ -72,7 +73,7 @@ type Workspace struct {
 	env    []string
 	logger logging.Logger
 
-	Executor Exec
+	Executor exec.Exec
 }
 
 // ApplyAsync makes a terraform apply call without blocking and calls the given
@@ -85,7 +86,9 @@ func (w *Workspace) ApplyAsync(callback CallbackFn) error {
 	ctx, cancel := context.WithDeadline(context.TODO(), w.LastOperation.StartTime().Add(defaultAsyncTimeout))
 	go func() {
 		defer cancel()
-		cmd := w.Executor.CommandContext(ctx, "terraform", w.dir, w.env, "apply", "-auto-approve", "-input=false", "-lock=false", "-json")
+		w.Executor.SetDir(w.dir)
+		w.Executor.SetEnv(w.env)
+		cmd := w.Executor.CommandContext(ctx, "terraform", "apply", "-auto-approve", "-input=false", "-lock=false", "-json")
 		out, err := cmd.CombinedOutput()
 		w.LastOperation.MarkEnd()
 		w.logger.Debug("apply async ended", "out", string(out))
@@ -111,7 +114,9 @@ func (w *Workspace) Apply(ctx context.Context) (ApplyResult, error) {
 	if w.LastOperation.IsRunning() {
 		return ApplyResult{}, errors.Errorf("%s operation that started at %s is still running", w.LastOperation.Type, w.LastOperation.StartTime().String())
 	}
-	cmd := w.Executor.CommandContext(ctx, "terraform", w.dir, w.env, "apply", "-auto-approve", "-input=false", "-lock=false", "-json")
+	w.Executor.SetDir(w.dir)
+	w.Executor.SetEnv(w.env)
+	cmd := w.Executor.CommandContext(ctx, "terraform", "apply", "-auto-approve", "-input=false", "-lock=false", "-json")
 	out, err := cmd.CombinedOutput()
 	w.logger.Debug("apply ended", "out", string(out))
 	if err != nil {
@@ -146,7 +151,9 @@ func (w *Workspace) DestroyAsync(callback CallbackFn) error {
 	ctx, cancel := context.WithDeadline(context.TODO(), w.LastOperation.StartTime().Add(defaultAsyncTimeout))
 	go func() {
 		defer cancel()
-		cmd := w.Executor.CommandContext(ctx, "terraform", w.dir, w.env, "destroy", "-auto-approve", "-input=false", "-lock=false", "-json")
+		w.Executor.SetDir(w.dir)
+		w.Executor.SetEnv(w.env)
+		cmd := w.Executor.CommandContext(ctx, "terraform", "destroy", "-auto-approve", "-input=false", "-lock=false", "-json")
 		out, err := cmd.CombinedOutput()
 		w.LastOperation.MarkEnd()
 		w.logger.Debug("destroy async ended", "out", string(out))
@@ -167,7 +174,9 @@ func (w *Workspace) Destroy(ctx context.Context) error {
 	if w.LastOperation.IsRunning() {
 		return errors.Errorf("%s operation that started at %s is still running", w.LastOperation.Type, w.LastOperation.StartTime().String())
 	}
-	cmd := w.Executor.CommandContext(ctx, "terraform", w.dir, w.env, "destroy", "-auto-approve", "-input=false", "-lock=false", "-json")
+	w.Executor.SetDir(w.dir)
+	w.Executor.SetEnv(w.env)
+	cmd := w.Executor.CommandContext(ctx, "terraform", "destroy", "-auto-approve", "-input=false", "-lock=false", "-json")
 	out, err := cmd.CombinedOutput()
 	w.logger.Debug("destroy ended", "out", string(out))
 	if err != nil {
@@ -196,7 +205,9 @@ func (w *Workspace) Refresh(ctx context.Context) (RefreshResult, error) {
 	case w.LastOperation.IsEnded():
 		defer w.LastOperation.Flush()
 	}
-	cmd := w.Executor.CommandContext(ctx, "terraform", w.dir, w.env, "apply", "-refresh-only", "-auto-approve", "-input=false", "-lock=false", "-json")
+	w.Executor.SetDir(w.dir)
+	w.Executor.SetEnv(w.env)
+	cmd := w.Executor.CommandContext(ctx, "terraform", "apply", "-refresh-only", "-auto-approve", "-input=false", "-lock=false", "-json")
 	out, err := cmd.CombinedOutput()
 	w.logger.Debug("refresh ended", "out", string(out))
 	if err != nil {
@@ -229,7 +240,9 @@ func (w *Workspace) Plan(ctx context.Context) (PlanResult, error) {
 	if w.LastOperation.IsRunning() {
 		return PlanResult{}, errors.Errorf("%s operation that started at %s is still running", w.LastOperation.Type, w.LastOperation.StartTime().String())
 	}
-	cmd := w.Executor.CommandContext(ctx, "terraform", w.dir, w.env, "plan", "-refresh=false", "-input=false", "-lock=false", "-json")
+	w.Executor.SetDir(w.dir)
+	w.Executor.SetEnv(w.env)
+	cmd := w.Executor.CommandContext(ctx, "terraform", "plan", "-refresh=false", "-input=false", "-lock=false", "-json")
 	out, err := cmd.CombinedOutput()
 	w.logger.Debug("plan ended", "out", string(out))
 	if err != nil {
