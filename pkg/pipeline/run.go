@@ -23,9 +23,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/crossplane/terrajet/pkg/config"
-
 	"github.com/crossplane/crossplane-runtime/pkg/errors"
+
+	"github.com/crossplane/terrajet/pkg/config"
 )
 
 // Run runs the Terrajet code generation pipelines.
@@ -52,6 +52,15 @@ func Run(pc *config.Provider, rootDir string) { // nolint:gocyclo
 		resourcesGroups[group][resource.Version][name] = resource
 	}
 
+	metaResources := make(map[string]*Resource)
+	if pc.ProviderMetadataPath != "" {
+		providerMetadata, err := NewProviderMetadataFromFile(filepath.Join(rootDir, pc.ProviderMetadataPath))
+		if err != nil {
+			panic(errors.Wrap(err, "cannot read Terraform provider metadata"))
+		}
+		metaResources = providerMetadata.Resources
+	}
+
 	// Add ProviderConfig API package to the list of API version packages.
 	apiVersionPkgList := make([]string, 0)
 	for _, p := range pc.BasePackages.APIVersion {
@@ -63,6 +72,7 @@ func Run(pc *config.Provider, rootDir string) { // nolint:gocyclo
 		controllerPkgList = append(controllerPkgList, filepath.Join(pc.ModulePath, p))
 	}
 	count := 0
+	exampleGen := NewExampleGenerator(rootDir, metaResources)
 	for group, versions := range resourcesGroups {
 		for version, resources := range versions {
 			versionGen := NewVersionGenerator(rootDir, pc.ModulePath, group, version)
@@ -83,6 +93,9 @@ func Run(pc *config.Provider, rootDir string) { // nolint:gocyclo
 					panic(errors.Wrapf(err, "cannot generate controller for resource %s", name))
 				}
 				controllerPkgList = append(controllerPkgList, ctrlPkgPath)
+				if err := exampleGen.Generate(group, version, resources[name], crdGen.Generated.FieldTransformations); err != nil {
+					panic(errors.Wrapf(err, "cannot generate example manifest for resource %s", name))
+				}
 				count++
 			}
 
@@ -91,6 +104,10 @@ func Run(pc *config.Provider, rootDir string) { // nolint:gocyclo
 			}
 			apiVersionPkgList = append(apiVersionPkgList, versionGen.Package().Path())
 		}
+	}
+
+	if err := exampleGen.StoreExamples(); err != nil {
+		panic(errors.Wrapf(err, "cannot store examples"))
 	}
 
 	if err := NewRegisterGenerator(rootDir, pc.ModulePath).Generate(apiVersionPkgList); err != nil {

@@ -45,6 +45,15 @@ func NewBuilder(pkg *types.Package) *Builder {
 	}
 }
 
+// Transformation represents a transformation applied to a
+// Terraform resource attribute. It's used to record any
+// transformations applied by the CRD generation pipeline.
+type Transformation struct {
+	TransformedName string
+	IsRef           bool
+	IsSensitive     bool
+}
+
 // Generated is a struct that holds generated types
 type Generated struct {
 	Types    []*types.Named
@@ -52,6 +61,8 @@ type Generated struct {
 
 	ForProviderType *types.Named
 	AtProviderType  *types.Named
+
+	FieldTransformations map[string]Transformation
 }
 
 // Builder is used to generate Go type equivalence of given Terraform schema.
@@ -64,16 +75,18 @@ type Builder struct {
 
 // Build returns parameters and observation types built out of Terraform schema.
 func (g *Builder) Build(cfg *config.Resource) (Generated, error) {
-	fp, ap, err := g.buildResource(cfg.TerraformResource, cfg, nil, nil, cfg.Kind)
+	fieldTransformations := make(map[string]Transformation)
+	fp, ap, err := g.buildResource(cfg.TerraformResource, cfg, nil, nil, fieldTransformations, cfg.Kind)
 	return Generated{
-		Types:           g.genTypes,
-		Comments:        g.comments,
-		ForProviderType: fp,
-		AtProviderType:  ap,
+		Types:                g.genTypes,
+		Comments:             g.comments,
+		ForProviderType:      fp,
+		AtProviderType:       ap,
+		FieldTransformations: fieldTransformations,
 	}, errors.Wrapf(err, "cannot build the Types")
 }
 
-func (g *Builder) buildResource(res *schema.Resource, cfg *config.Resource, tfPath []string, xpPath []string, names ...string) (*types.Named, *types.Named, error) { //nolint:gocyclo
+func (g *Builder) buildResource(res *schema.Resource, cfg *config.Resource, tfPath []string, xpPath []string, t map[string]Transformation, names ...string) (*types.Named, *types.Named, error) { //nolint:gocyclo
 	// NOTE(muvaf): There can be fields in the same CRD with same name but in
 	// different types. Since we generate the type using the field name, there
 	// can be collisions. In order to be able to generate unique names consistently,
@@ -134,7 +147,7 @@ func (g *Builder) buildResource(res *schema.Resource, cfg *config.Resource, tfPa
 			}
 		}
 
-		fieldType, err := g.buildSchema(sch, cfg, tfPaths, xpPaths, append(names, fieldName.Camel))
+		fieldType, err := g.buildSchema(sch, cfg, tfPaths, xpPaths, t, append(names, fieldName.Camel))
 		if err != nil {
 			return nil, nil, errors.Wrapf(err, "cannot infer type from schema of field %s", fieldName.Snake)
 		}
@@ -144,6 +157,7 @@ func (g *Builder) buildResource(res *schema.Resource, cfg *config.Resource, tfPa
 			sch.Optional = true
 		}
 
+		fPath := fieldPath(tfPaths)
 		fieldNameCamel := fieldName.Camel
 		if sch.Sensitive {
 			if isObservation(sch) {
@@ -153,7 +167,13 @@ func (g *Builder) buildResource(res *schema.Resource, cfg *config.Resource, tfPa
 				continue
 			}
 			sfx := "SecretRef"
-			cfg.Sensitive.AddFieldPath(fieldPathWithWildcard(tfPaths), "spec.forProvider."+fieldPathWithWildcard(xpPaths)+sfx)
+			paramSecretRefField := fieldPathWithWildcard(xpPaths) + sfx
+			cfg.Sensitive.AddFieldPath(fieldPathWithWildcard(tfPaths), "spec.forProvider."+paramSecretRefField)
+			t[fPath] = Transformation{
+				TransformedName: xpPaths[len(xpPaths)-1] + sfx,
+				IsRef:           true,
+				IsSensitive:     true,
+			}
 			// todo(turkenh): do we need to support other field types as sensitive?
 			if fieldType.String() != "string" && fieldType.String() != "*string" {
 				return nil, nil, fmt.Errorf(`got type %q for field %q, only types "string" and "*string" supported as sensitive`, fieldType.String(), fieldNameCamel)
@@ -178,7 +198,6 @@ func (g *Builder) buildResource(res *schema.Resource, cfg *config.Resource, tfPa
 		if comment.TerrajetOptions.FieldJSONTag != nil {
 			jsonTag = *comment.TerrajetOptions.FieldJSONTag
 		}
-
 		// NOTE(muvaf): If a field is not optional but computed, then it's
 		// definitely an observation field.
 		// If it's optional but also computed, then it means the field has a server
@@ -199,11 +218,20 @@ func (g *Builder) buildResource(res *schema.Resource, cfg *config.Resource, tfPa
 			req := !sch.Optional
 			comment.Required = &req
 			paramFields = append(paramFields, field)
+			if _, ok := t[fPath]; !ok {
+				t[fPath] = Transformation{
+					TransformedName: fieldName.LowerCamelComputed,
+				}
+			}
 		}
-		if ref, ok := cfg.References[fieldPath(tfPaths)]; ok {
-			refFields, refTags := g.generateReferenceFields(paramName, field, ref)
+		if ref, ok := cfg.References[fPath]; ok {
+			refFields, refTags, names := g.generateReferenceFields(paramName, field, ref)
 			paramTags = append(paramTags, refTags...)
 			paramFields = append(paramFields, refFields...)
+			t[fPath] = Transformation{
+				TransformedName: names[0].LowerCamelComputed,
+				IsRef:           true,
+			}
 		}
 
 		g.comments.AddFieldComment(paramName, fieldNameCamel, comment.Build())
@@ -225,7 +253,7 @@ func (g *Builder) buildResource(res *schema.Resource, cfg *config.Resource, tfPa
 	return paramType, obsType, nil
 }
 
-func (g *Builder) buildSchema(sch *schema.Schema, cfg *config.Resource, tfPath []string, xpPath []string, names []string) (types.Type, error) { // nolint:gocyclo
+func (g *Builder) buildSchema(sch *schema.Schema, cfg *config.Resource, tfPath []string, xpPath []string, t map[string]Transformation, names []string) (types.Type, error) { // nolint:gocyclo
 	switch sch.Type {
 	case schema.TypeBool:
 		return types.NewPointer(types.Universe.Lookup("bool").Type()), nil
@@ -255,14 +283,14 @@ func (g *Builder) buildSchema(sch *schema.Schema, cfg *config.Resource, tfPath [
 				return nil, errors.Errorf("element type of %s is basic but not one of known basic types", fieldPath(names))
 			}
 		case *schema.Schema:
-			elemType, err = g.buildSchema(et, cfg, tfPath, xpPath, names)
+			elemType, err = g.buildSchema(et, cfg, tfPath, xpPath, t, names)
 			if err != nil {
 				return nil, errors.Wrapf(err, "cannot infer type from schema of element type of %s", fieldPath(names))
 			}
 		case *schema.Resource:
 			// TODO(muvaf): We skip the other type once we choose one of param
 			// or obs types. This might cause some fields to be completely omitted.
-			paramType, obsType, err := g.buildResource(et, cfg, tfPath, xpPath, names...)
+			paramType, obsType, err := g.buildResource(et, cfg, tfPath, xpPath, t, names...)
 			if err != nil {
 				return nil, errors.Wrapf(err, "cannot infer type from resource schema of element type of %s", fieldPath(names))
 			}
