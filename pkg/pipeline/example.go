@@ -102,7 +102,9 @@ func (eg *ExampleGenerator) StoreExamples() error {
 		if err := eg.resolveReferences(pm.paved.UnstructuredContent()); err != nil {
 			return errors.Wrapf(err, "cannot resolve references for resource: %s", n)
 		}
-		buff, err := yaml.Marshal(pm.paved.UnstructuredContent())
+		u := pm.paved.UnstructuredContent()
+		delete(u["spec"].(map[string]interface{})["forProvider"].(map[string]interface{}), "depends_on")
+		buff, err := yaml.Marshal(u)
 		if err != nil {
 			return errors.Wrapf(err, "cannot marshal example manifest for resource: %s", n)
 		}
