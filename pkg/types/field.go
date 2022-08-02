@@ -88,8 +88,9 @@ func NewSensitiveField(g *Builder, cfg *config.Resource, r *resource, sch *schem
 	cfg.Sensitive.AddFieldPath(fieldPathWithWildcard(f.TerraformPaths), "spec.forProvider."+fieldPathWithWildcard(f.CRDPaths)+sfx)
 	// todo(turkenh): do we need to support other field types as sensitive?
 	if f.FieldType.String() != "string" && f.FieldType.String() != "*string" && f.FieldType.String() != "[]string" &&
-		f.FieldType.String() != "[]*string" && f.FieldType.String() != "map[string]string" && f.FieldType.String() != "map[string]*string" {
-		return nil, false, fmt.Errorf(`got type %q for field %q, only types "string", "*string", []string, []*string, "map[string]string" and "map[string]*string" supported as sensitive`, f.FieldType.String(), f.FieldNameCamel)
+		f.FieldType.String() != "[]*string" && f.FieldType.String() != "map[string]string" && f.FieldType.String() != "map[string]*string" &&
+		f.FieldType.String() != "float64" && f.FieldType.String() != "*float64" {
+		return nil, false, fmt.Errorf(`got type %q for field %q, only types "string", "*string", []string, []*string, "map[string]string", "map[string]*string", float64 and *float64 supported as sensitive`, f.FieldType.String(), f.FieldNameCamel)
 	}
 	// Replace a parameter field with secretKeyRef if it is sensitive.
 	// If it is an observation field, it will be dropped.
@@ -98,7 +99,7 @@ func NewSensitiveField(g *Builder, cfg *config.Resource, r *resource, sch *schem
 
 	f.TFTag = "-"
 	switch f.FieldType.String() {
-	case "string", "*string":
+	case "string", "*string", "float64", "*float64":
 		f.FieldType = typeSecretKeySelector
 	case "[]string", "[]*string":
 		f.FieldType = types.NewSlice(typeSecretKeySelector)
