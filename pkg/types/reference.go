@@ -19,7 +19,7 @@ const (
 	// with common APIs
 	PackagePathXPCommonAPIs = "github.com/crossplane/crossplane-runtime/apis/common/v1"
 
-	loadMode = packages.NeedName | packages.NeedImports | packages.NeedTypes
+	loadMode = packages.NeedName | packages.NeedImports | packages.NeedTypes | packages.NeedDeps
 )
 
 var typeReferenceField types.Type
