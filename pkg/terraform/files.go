@@ -183,5 +183,5 @@ func (fp *FileProducer) WriteMainTF() error {
 	if err != nil {
 		return errors.Wrap(err, "cannot marshal main hcl object")
 	}
-	return errors.Wrap(fp.fs.WriteFile(filepath.Join(fp.Dir, "main.tf.json"), rawMainTF, 0600), "cannot write tfstate file")
+	return errors.Wrap(fp.fs.WriteFile(filepath.Join(fp.Dir, "main.tf.json"), rawMainTF, 0600), "cannot write maintf file")
 }
