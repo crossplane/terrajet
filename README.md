@@ -1,3 +1,6 @@
+# 🚨 PLEASE NOTE 🚨: This repository is no longer maintained. Use its successor [Upjet](https://github.com/upbound/upjet) instead. See details in https://github.com/crossplane/terrajet/issues/308
+
+---
 # Terrajet - Generate Crossplane Providers from any Terraform Provider
 
 Terrajet is a code generator framework that allows developers to build code
