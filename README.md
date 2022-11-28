@@ -1,5 +1,7 @@
 # 🚨 PLEASE NOTE 🚨: This repository is no longer maintained. Use its successor [Upjet](https://github.com/upbound/upjet) instead. See details in https://github.com/crossplane/terrajet/issues/308
 
+## A guide for migrating Terrajet-based providers to Upjet is available [here](https://github.com/upbound/upjet/blob/main/docs/migrating-from-terrajet-to-upjet.md). 
+
 ---
 # Terrajet - Generate Crossplane Providers from any Terraform Provider
 
