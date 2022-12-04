@@ -319,7 +319,7 @@ func TestBuild(t *testing.T) {
 					TerraformResource: &schema.Resource{
 						Schema: map[string]*schema.Schema{
 							"key_1": {
-								Type:      schema.TypeFloat,
+								Type:      schema.TypeInt,
 								Sensitive: true,
 							},
 						},
@@ -327,7 +327,7 @@ func TestBuild(t *testing.T) {
 				},
 			},
 			want: want{
-				err: errors.Wrapf(fmt.Errorf(`got type %q for field %q, only types "string", "*string", []string, []*string, "map[string]string" and "map[string]*string" supported as sensitive`, "*float64", "Key1"), "cannot build the Types"),
+				err: errors.Wrapf(fmt.Errorf(`got type %q for field %q, only types "string", "*string", []string, []*string, "map[string]string", "map[string]*string", float64 and *float64 supported as sensitive`, "*int64", "Key1"), "cannot build the Types"),
 			},
 		},
 		"References": {
